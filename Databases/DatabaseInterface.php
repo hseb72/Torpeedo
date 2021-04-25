@@ -1,7 +1,6 @@
 <?php
 
 namespace Torpeedo\Databases ;
-
 interface DatabaseInterface
 {
     public function connect () ;
