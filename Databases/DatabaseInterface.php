@@ -8,4 +8,5 @@ interface DatabaseInterface
     public function disconnect () ;
     public function query( $sQuery ) ;
     public function lastInsertedId () ;
+    public function getEncoding () ;
 }
