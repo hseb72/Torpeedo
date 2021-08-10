@@ -6,7 +6,7 @@ use Torpeedo\Logs as TLogs ;
 
 trait TTable
 {
-	private $xDBConnection ;
+	public $xDBConnection ;
 	private $sName ;
 	private $sShortName ;
 	private $sPrimaryKey ;
@@ -193,21 +193,21 @@ trait TTable
     public function singleFilter ( $sFilterField, $sFilterValue )
     {
 		foreach ( $this -> aFProperties as $sField => $sValue ) {
-			if ( $sFilterField === $sValue ) 
+			if ( $sFilterField == $sValue ) 
 				return ( $this -> filter ( 
 					"where " . $sField . " = '" . $sFilterValue . "'"
 				)) ;
 		}
-
+		
 		return $this -> all () ;
 	}
 
     public function filter ( $sFilter )
     {
 		$aResult = array () ;
+
 		try {
 			$sQuery = "select * from " . $this -> sTP . $this -> sName . " " . $sFilter . " limit 1000" ;
-
 			if ( $aLocal = $this -> xDBConnection -> query ( $sQuery ) ) {
 				if ( is_array ( $aLocal ) ) {
 					foreach ( $aLocal as $iKey => $aRow ) {
@@ -247,9 +247,9 @@ trait TTable
 				$sQueryFields .= $sFieldSep . $sField ;
 				if ( $sField === $this -> sPrimaryKey ) {
 					$sQueryValues .= $sFieldSep . 'null' ;
-				} else if ( trim ( $this -> aTProperties [ $sValue ] ) == '' && $this -> aFWithNulls [ $sField ] === true ) {
+				} else if ( trim ( $this -> aTProperties [ $sValue ] ) === '' && $this -> aFWithNulls [ $sField ] === true ) {
 					$sQueryValues .= $sFieldSep . 'null' ;
-				} else if ( $this -> aFTypes [ $sField ] == 'integer' ) {
+				} else if ( $this -> aFTypes [ $sField ] == 'integer' || $this -> aFTypes [ $sField ] == 'float' ) {
 					$sQueryValues .= $sFieldSep . $this -> aTProperties [ $sValue ] ;
 				} else
 					$sQueryValues .= $sFieldSep . "'" . preg_replace ( "/'/", "''", $this -> aTProperties [ $sValue ] ) . "'" ;
@@ -287,14 +287,13 @@ trait TTable
 			$sQuery  = "update " . $this -> sTP . $this -> sName . " set " ;
 			$sQueryFields = '' ;
 			$sQueryValues = '' ;
-
 			/*
 			// Depending on the value, add quote or replace with the "null" word when necessary
 			*/
 			$sFieldSep = "" ;
 			foreach ( $this -> aFProperties as $sField => $sValue ) {
 				$sQueryFields .= $sFieldSep . $sField . " = " ;
-				if ( trim ( $this -> aTProperties [ $sValue ] ) == '' && $this -> aFWithNulls [ $sField ] === true ) {
+				if ( trim ( $this -> aTProperties [ $sValue ] ) === '' && $this -> aFWithNulls [ $sField ] === true ) {
 					$sQueryFields .= 'null' ;
 				} else if ( $this -> aFTypes [ $sField ] == 'integer' ) {
 					$sQueryFields .= $this -> aTProperties [ $sValue ] ;
@@ -313,7 +312,6 @@ trait TTable
 			// try to persist this object in a database record
 			// Say "WTF" if not able
 			*/
-
 			if ( ! $xReturnCode = $this -> xDBConnection -> query ( $sQuery ) )
 				throw new \Exception ( "De la merdasse : " . $sQuery ) ;
 		} catch ( Exception $e ) { TLogs\TLog :: std ( $e ) ; }
@@ -321,3 +319,4 @@ trait TTable
 		return ( $this ) ;
 	}
 }
+

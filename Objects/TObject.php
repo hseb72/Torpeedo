@@ -9,7 +9,7 @@ trait TObject
     private $aTConfig ;
     private $aTProperties ;
     private $aTList ;
-	
+
     public function loadObject ( $sTableFile, $xDatabase = '' )
     {
         try {
@@ -32,7 +32,19 @@ trait TObject
             $this -> aTProperties [ $aTProperty [ 'Name' ] ] = '' ;
         }
 
-        if ( ! empty ( $xDatabase ) ) $this -> loadTable ( $xDatabase ) ;
+        if ( ! empty ( $xDatabase ) ) {
+		$this -> loadTable ( $xDatabase ) ;
+	}
+    }
+
+    public function clean ()
+    {
+	foreach ( $this -> aTProperties as $sProperty => $sValue )
+		$this -> set ( $sProperty, '' ) ;
+
+	$this -> aTList = array () ;
+
+	return ( $oTObject ) ;
     }
 
     public function get ( $sProperty )
@@ -45,30 +57,12 @@ trait TObject
 
     public function set ( $sProperty, $sValue )
     {
-		if ( isset ( $this -> aFProperties [ $sProperty ] ) ) {
-			$this -> aTProperties [ $this -> aFProperties [ $sProperty ] ] = $sValue ;
+	if ( isset ( $this -> aFProperties [ $sProperty ] ) ) {
+		$this -> aTProperties [ $this -> aFProperties [ $sProperty ] ] = $sValue ;
         } else {
-            $this -> aTProperties [ $sProperty ] = $sValue ;
+		$this -> aTProperties [ $sProperty ] = $sValue ;
         }
 
-        return ( $this ) ;
-    }
-
-    public function copy ( $oSource )
-    {
-		foreach ( $oSource -> getProperties () as $sProperty => $sValue ) {
-			$this -> set ( $sProperty, $sValue ) ;
-		}
-        
-        return ( $this ) ;
-    }
-
-    public function mapArray ( $aSource )
-    {
-		foreach ( $aSource as $sProperty => $sValue ) {
-			$this -> set ( $sProperty, $sValue ) ;
-		}
-        
         return ( $this ) ;
     }
 
@@ -91,8 +85,12 @@ trait TObject
             default : 
                 $aSource = null;
         }
+
+	foreach ( $aSource as $sProperty => $sValue ) {
+		$this -> set ( $sProperty, $sValue ) ;
+	}
         
-        return ( $this -> mapArray ( $aSource ) ) ;
+        return ( $this ) ;
     }
 
     public function mapList ( $xSource, $sStringSourceType = 'json' )
@@ -115,60 +113,62 @@ trait TObject
                 $aSource = null;
         }
 
-		$oNewSelf = clone ( $this ) ;
+	$sLocal = "\\soredi\\Persistence\\" . $this -> aTConfig [ 'ObjectName' ] ;
+	$oLocal = new $sLocal ( $this -> xDBConnection ) ;
 
-		foreach ( $aSource as $iKey => $oSource ) {
-			$oNewSelf -> mapArray ( $oSource -> getProperties () ) ;
-			$this -> aTList [] = clone ( $oNewSelf ) ;
-		}
+	foreach ( $aSource as $iKey => $oSource ) {
+		$oLocal -> map ( $oSource -> getProperties () ) ;
+		$this -> aTList [] = clone ($oLocal) ;
+	}
 
         return ( $this ) ;
     }
 
     public function castinto ( $oTObject )
     {
-		foreach ( $this -> aTProperties as $sProperty => $sValue )
-			$oTObject -> set ( $sProperty, $sValue ) ;
+	foreach ( $this -> aTProperties as $sProperty => $sValue )
+		$oTObject -> set ( $sProperty, $sValue ) ;
 
-		return ( $oTObject ) ;
+	return ( $oTObject ) ;
+    }
+
+    public function addToList ( $oTObject )
+    {
+        $this -> aTList [] = clone ( $oTObject ) ;
     }
 
     public function getFirst ()
     {
-		if ( count ( $this -> aTList ) != 0 )
-			$this -> aTList [0] -> castinto ( $this ) ;
-			
-		return ( $this ) ;
+	if ( count ( $this -> aTList ) != 0 )
+		$this -> aTList [0] -> castinto ( $this ) ;
+		
+	return ( $this ) ;
+    }
+
+    public function getLast ()
+    {
+	if ( count ( $this -> aTList ) != 0 )
+		$this -> aTList [count ( $this -> aTList )] -> castinto ( $this ) ;
+		
+	return ( $this ) ;
     }
 
     public function getList ()
     {
-		return ( $this -> aTList ) ;
-    }
-
-    public function cleanList ()
-    {
-		return ( $this -> aTList = array () ) ;
-    }
-
-    public function appendToList ( $oObject )
-    {
-		$this -> aTList [] = $oObject ;
-
-		return ( $this ) ;
+	return ( $this -> aTList ) ;
     }
 
     public function getProperties ()
     {
-		return ( $this -> aTProperties ) ;
+	return ( $this -> aTProperties ) ;
     }
 
     public function displaylist ( $sMode = '' )
     {
-		$aObjects = Array() ;
-		foreach ( $this -> aTList as $iKey => $oLocal ) {
-			$aObjects [] = $oLocal -> display ( $sMode, false ) ;
-		}
+	$aObjects = Array() ;
+	foreach ( $this -> aTList as $iKey => $oLocal ) {
+		$aObjects [] = $oLocal -> display ( $sMode, false ) ;
+	}
 
         switch ( strtolower ( $sMode ) ) {
             case 'array' :
@@ -208,12 +208,15 @@ trait TObject
                 }
                 break ;
             case 'json-utf8' :
-		//$aJSON = array_map ( "utf8_encode", $this -> aTProperties) ;
-		// Si le chararcter-set de la base est utf8 quelque chose, pas de transformation du tableau.
-		$aJSON = $this -> aTProperties ;
+		//$aJSON = [ "Object" => $this -> sName, "Properties" => array_map ( "utf8_encode", $this -> aTProperties) ] ;
+		if ( ! isset ( $this -> xDBConnection ) || !preg_match ( '/^utf8.*/', $this -> xDBConnection -> getEncoding () ) )
+			$aJSON = array_map ( "utf8_encode", $this -> aTProperties ) ;
+		else
+			$aJSON = $this -> aTProperties ;
+
                 if ( $iAlone ) {
-//				$this -> setHeaders() ;
-					print ( json_encode ( $aJSON , JSON_PRETTY_PRINT ) ) ;
+//			$this -> setHeaders() ;
+			print ( json_encode ( $aJSON , JSON_PRETTY_PRINT ) ) ;
                 } else {
                     return ( $aJSON ) ;
                 }
@@ -232,55 +235,5 @@ trait TObject
         }
 
         return ( $this ) ;
-    }
-
-    public function printable ( $sMode = '' )
-    {
-		$iAlone = true ;
-
-        switch ( strtolower ( $sMode ) ) {
-            case 'array' :
-                if ( $iAlone ) {
-					$sResult = '['."\n" ;
-					$sSep = "" ;
-					foreach ( $this -> aTProperties as $sProperty => $sValue ) {
-						$sResult .= $sSep . '"' . $sProperty . '" => "' . utf8_encode ( $sValue ) . "'" ;
-						$sSep = ",\n" ;
-					}
-					$sResult .= ']'."\n" ;
-					return ( $sResult ) ;
-                } else {
-                    return ( $this -> aTProperties ) ;
-                }
-                break ;
-            case 'json' :
-            case 'json-educated' : 
-				$aJSON = [ "Object" => $this -> sName, "Properties" => $this -> aTProperties ] ;
-                if ( $iAlone ) {
-                    return ( json_encode ( $aJSON , JSON_PRETTY_PRINT ) ) ;
-                } else {
-                    return ( $aJSON ) ;
-                }
-                break ;
-            case 'json-utf8' :
-				$aJSON = array_map ( "utf8_encode", $this -> aTProperties) ;
-                if ( $iAlone ) {
-					return ( json_encode ( $aJSON , JSON_PRETTY_PRINT ) ) ;
-                } else {
-                    return ( $aJSON ) ;
-                }
-                break ;
-            case "rude" :
-				$sResult = '' ;
-                foreach ( $this -> aTProperties as $sProperty => $sValue )
-                    $sResult .= $sProperty . " = " . $sValue . "\n" ;
-				return ( $sResult ) ;
-                break ;
-            default :
-				$sResult = '' ;
-                foreach ( $this -> aTProperties as $sProperty => $sValue )
-                    $sResult .= $sProperty . " = " . utf8_encode ( $sValue ) . "\n" ;
-				return ( $sResult ) ;
-        }
     }
 }
